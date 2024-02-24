@@ -1,9 +1,10 @@
-class ActiveRecordBase {
+export class ActiveRecordBase {
   static dataStore = {};
   static relations = {};
 
   static hasMany(relationName, { model }) {
     this.relations[relationName] = { type: 'hasMany', model };
+    model.relations[this.name.toLowerCase()] = { type: 'belongsTo', model: this };
   }
 
   static async create(attributes) {
@@ -16,6 +17,10 @@ class ActiveRecordBase {
     return this.dataStore[this.name] || [];
   }
 
+  static reset() {
+    this.dataStore = {};
+  }
+
   constructor(attributes) {
     this.attributes = attributes;
     this.constructor.dataStore[this.constructor.name] =
@@ -24,7 +29,11 @@ class ActiveRecordBase {
       get: (target, prop, receiver) => {
         if (prop in target) {
           return target[prop];
-        } else if (prop in target.constructor.relations) {
+        }
+        if (prop in target.attributes) {
+          return target.attributes[prop];
+        }
+        if (prop in target.constructor.relations) {
           const relation = target.constructor.relations[prop];
           if (relation.type === 'hasMany') {
             return {
@@ -47,6 +56,15 @@ class ActiveRecordBase {
               },
             };
           }
+          if (relation.type === 'belongsTo') {
+            return relation.model
+              .findAll()
+              .find(
+                (relatedInstance) =>
+                  relatedInstance.attributes.id ===
+                  target.attributes[`${relation.model.name.toLowerCase()}Id`],
+              );
+          }
         }
       },
     });
@@ -54,7 +72,7 @@ class ActiveRecordBase {
 
   async save() {
     this.constructor.dataStore[this.constructor.name].push(this);
-    console.log(`${this.constructor.name} saved.`);
+    console.log(`${this.constructor.name} saved. : ${JSON.stringify(this.attributes)}`);
   }
 
   async delete() {
@@ -65,15 +83,3 @@ class ActiveRecordBase {
     }
   }
 }
-
-class Post extends ActiveRecordBase {}
-class User extends ActiveRecordBase {}
-
-User.hasMany('posts', { model: Post });
-
-const user = new User({ id: 1, name: 'Taro' });
-await user.save();
-
-const post = await user.posts.create({ desc: 'Hogehoge' });
-console.log(post);
-console.log(user.posts.all());
