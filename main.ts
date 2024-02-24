@@ -1,44 +1,55 @@
-export class ActiveRecordBase {
-  static dataStore = {};
-  static relations = {};
+type Attributes = Record<string, any>;
 
-  static hasMany(relationName, { model }) {
+export class ActiveRecordBase<T extends Attributes> {
+  static dataStore: Record<string, any[]> = {};
+  static relations: Record<string, { type: string; model: typeof ActiveRecordBase }> = {};
+
+  static hasMany<R extends ActiveRecordBase<any>>(
+    relationName: string,
+    { model }: { model: new (attributes: any) => R },
+  ) {
     this.relations[relationName] = { type: 'hasMany', model };
-    model.relations[this.name.toLowerCase()] = { type: 'belongsTo', model: this };
+    (model as any).relations[this.name.toLowerCase()] = { type: 'belongsTo', model: this };
   }
 
-  static async create(attributes) {
+  static async create<R extends ActiveRecordBase<any>>(
+    this: new (attributes: any) => R,
+    attributes: Attributes,
+  ): Promise<R> {
     const instance = new this(attributes);
     await instance.save();
     return instance;
   }
 
-  static findAll() {
-    return this.dataStore[this.name] || [];
+  static findAll<R extends ActiveRecordBase<any>>(this: new (attributes: any) => R): R[] {
+    return (this.dataStore[this.name] || []) as R[];
   }
 
   static reset() {
     this.dataStore = {};
   }
 
-  constructor(attributes) {
+  attributes: T;
+
+  constructor(attributes: T) {
     this.attributes = attributes;
     this.constructor.dataStore[this.constructor.name] =
       this.constructor.dataStore[this.constructor.name] || [];
     return new Proxy(this, {
       get: (target, prop, receiver) => {
         if (prop in target) {
-          return target[prop];
+          return target[prop as keyof ActiveRecordBase<T>];
         }
         if (prop in target.attributes) {
-          return target.attributes[prop];
+          return target.attributes[prop as keyof T];
         }
-        if (prop in target.constructor.relations) {
-          const relation = target.constructor.relations[prop];
+        const relation = target.constructor.relations[prop as string];
+        if (relation) {
           if (relation.type === 'hasMany') {
+            const relatedModel = relation.model as typeof ActiveRecordBase;
             return {
-              create: async (relatedAttributes) => {
-                const relatedInstance = new relation.model({
+              create: async (relatedAttributes: Attributes) => {
+                const relatedInstance = new relatedModel({
                   ...relatedAttributes,
                   [`${target.constructor.name.toLowerCase()}Id`]: target.attributes.id,
                 });
@@ -46,28 +57,30 @@ export class ActiveRecordBase {
                 return relatedInstance;
               },
               all: () => {
-                return relation.model
+                return relatedModel
                   .findAll()
                   .filter(
-                    (relatedInstance) =>
+                    (relatedInstance: ActiveRecordBase<any>) =>
                       relatedInstance.attributes[`${target.constructor.name.toLowerCase()}Id`] ===
                       target.attributes.id,
-                  );
+                  ) as ActiveRecordBase<any>[];
               },
             };
           }
           if (relation.type === 'belongsTo') {
-            return relation.model
+            const relatedModel = relation.model as typeof ActiveRecordBase;
+            return relatedModel
               .findAll()
               .find(
-                (relatedInstance) =>
+                (relatedInstance: ActiveRecordBase<any>) =>
                   relatedInstance.attributes.id ===
-                  target.attributes[`${relation.model.name.toLowerCase()}Id`],
+                  target.attributes[`${relatedModel.name.toLowerCase()}Id`],
               );
           }
         }
+        return Reflect.get(target, prop, receiver);
       },
-    });
+    }) as T & ActiveRecordBase<T>;
   }
 
   async save() {

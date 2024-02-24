@@ -1,10 +1,9 @@
 import { assertEquals } from 'https://deno.land/std@0.217.0/assert/assert_equals.ts';
-import { User } from './User.js';
-import { ActiveRecordBase } from './main.js';
+import { User } from './User.ts';
+import { ActiveRecordBase } from './main.ts';
 
 Deno.test('User create', async () => {
-  const user = new User({ id: 1, name: 'Taro' });
-  await user.save();
+  const user = await User.create({ id: 1, name: 'Taro' });
   assertEquals(user.id, 1);
   assertEquals(user.name, 'Taro');
   assertEquals(User.findAll().length, 1);
@@ -13,8 +12,7 @@ Deno.test('User create', async () => {
 });
 
 Deno.test('User hasMany Post', async () => {
-  const user = new User({ id: 1, name: 'Taro' });
-  await user.save();
+  const user = await User.create({ id: 1, name: 'Taro' });
   await user.posts.create({ desc: 'Hogehoge' });
   await user.posts.create({ desc: 'fugauga' });
 
@@ -25,8 +23,7 @@ Deno.test('User hasMany Post', async () => {
 });
 
 Deno.test('Post belongsTo User', async () => {
-  const user = new User({ id: 1, name: 'Taro' });
-  await user.save();
+  const user = await User.create({ id: 1, name: 'Taro' });
   const post = await user.posts.create({ desc: 'Hogehoge' });
 
   assertEquals(post.user, user);
@@ -35,8 +32,7 @@ Deno.test('Post belongsTo User', async () => {
 });
 
 Deno.test('Post hasMany Comment', async () => {
-  const user = new User({ id: 1, name: 'Taro' });
-  await user.save();
+  const user = await User.create({ id: 1, name: 'Taro' });
   const post = await user.posts.create({ desc: 'Hogehoge' });
   await post.comments.create({ desc: 'fugauga' });
   await post.comments.create({ desc: 'piyopiyo' });

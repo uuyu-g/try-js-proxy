@@ -1,5 +1,5 @@
 import { Comment } from './Comment.js';
-import { ActiveRecordBase } from './main.js';
+import { ActiveRecordBase } from './main.ts';
 
 export class Post extends ActiveRecordBase {}
 
